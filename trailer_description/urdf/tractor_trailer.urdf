@@ -1,0 +1,284 @@
+<?xml version="1.0"?>
+<robot name="myrobot" xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:property name="base_x_len" value="0.6" />
+  <xacro:property name="base_y_len" value="0.54" />
+  <xacro:property name="base_z_len" value="0.05" />
+  <xacro:property name="trailer_x_len" value="0.2" />
+  <xacro:property name="trailer_y_len" value="0.6" />
+  <xacro:property name="trailer_z_len" value="0.05" />
+  <xacro:property name="camera_link_len" value="0.07" />
+
+  <xacro:property name="laser_base_len" value="0.07" />
+  <xacro:property name="laser_len" value="0.05" />
+  <xacro:property name="wheel_radius" value="0.07" />
+  <xacro:property name="wheel_length" value="0.04" />
+  <xacro:property name="tool_arm_length" value="0.4" />
+  <xacro:property name="tool_arm_radius" value="0.01" />
+  <xacro:property name="tool_hand_x_len" value="0.07" />
+  <xacro:property name="tool_hand_y_len" value="0.07" />
+  <xacro:property name="tool_hand_z_len" value="0.07" />
+  <xacro:property name="pi" value="3.1415926" />
+  <material name="blue">
+    <color rgba="0 0 0.8 1" />
+  </material>
+  <material name="black">
+    <color rgba="0 0 0 1" />
+  </material>
+  <material name="white">
+    <color rgba="1 1 1 1" />
+  </material>
+  <material name="green">
+    <color rgba="1 0.4 0.1 1" />
+  </material>
+
+  <xacro:macro name="cylinder_inertial" params="mass r l">
+    <inertial>
+      <mass value="${mass}" />
+      <inertia
+        ixx="${1/12*mass*(3*r*r+l*l)}"
+        ixy="0.0" ixz="0.0"
+        iyy="${1/12*mass*(3*r*r+l*l)}"
+        iyz="0.0" izz="${0.5 * mass * r* r}" />
+    </inertial>
+  </xacro:macro>
+
+
+  <xacro:macro name="box_inertial" params="mass x y z">
+    <inertial>
+      <mass value="${mass}" />
+      <inertia ixx="${mass*(y*y+z*z)/12}" ixy="0.0" ixz="0.0" iyy="${mass*(x*x+z*z)/12}" iyz="0.0"
+        izz="${mass*(y*y+x*x)/12}" />
+    </inertial>
+  </xacro:macro>
+
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.01 0.01 0.01" />
+      </geometry>
+      <material name="blue" />
+    </visual>
+  </link>
+
+  <link name="chassis_link">
+    <visual>
+      <geometry>
+        <box size="${base_x_len} ${base_y_len} ${base_z_len} " />
+      </geometry>
+      <material name="blue" />
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${base_x_len} ${base_y_len} ${base_z_len} " />
+      </geometry>
+    </collision>
+    <xacro:box_inertial mass="10" x="${base_x_len}" y="${base_y_len}" z="${base_z_len}" />
+  </link>
+
+  <joint name="base_link_to_chassis" type="fixed">
+    <parent link="base_link" />
+    <child link="chassis_link" />
+    <origin xyz="0 0 ${base_z_len/2 + 0.005}" />
+  </joint>
+
+
+  <xacro:macro name="wheel" params="prefix suffix reflect1 reflect2 parent mass">
+
+    <link name="${prefix}_${suffix}_wheel">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_length}" />
+        </geometry>
+        <material name="black" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_length}" />
+        </geometry>
+      </collision>
+
+      <inertial>
+        <mass value="${mass}" />
+        <inertia
+          ixx="${1/12*mass*(3*wheel_radius*wheel_radius+wheel_length*wheel_length)}"
+          ixy="0.0" ixz="0.0"
+          iyy="${1/12*mass*(3*wheel_radius*wheel_radius+wheel_length*wheel_length)}"
+          iyz="0.0" izz="${0.5 * mass * wheel_radius* wheel_radius}" />
+      </inertial>
+
+    </link>
+    <joint name="${prefix}_${suffix}_wheel_joint" type="continuous">
+      <axis xyz="0 0 1" rpy="0 0 0" />
+      <parent link="${parent}_link" />
+      <child link="${prefix}_${suffix}_wheel" />
+      <origin
+        xyz="${reflect1* (0.5 * base_x_len - wheel_radius)} ${reflect2 * (0.5 * base_y_len - 0.5 * wheel_length)} -${wheel_radius + base_z_len * 0.5}"
+        rpy="-${pi / 2.0} 0 0" />
+    </joint>
+
+    <!-- This block provides the simulator (Gazebo) with information on a few additional
+    physical properties. See http://gazebosim.org/tutorials/?tut=ros_urdf for more-->
+    <gazebo reference="${prefix}_${suffix}_wheel">
+      <mu1 value="1" />
+      <mu2 value="1" />
+      <kp value="1000000.0" />
+      <kd value="10.0" />
+      <fdir1 value="1 0 0" />
+      <material>Gazebo/Grey</material>
+    </gazebo>
+
+    <!-- This block connects the wheel joint to an actuator (motor), which informs both
+    simulation and visualization of the robot -->
+    <transmission name="${prefix}_${suffix}_wheel_trans">
+      <type>transmission_interface/SimpleTransmission</type>
+      <actuator name="${prefix}_${suffix}_wheel_motor">
+        <mechanicalReduction>1</mechanicalReduction>
+      </actuator>
+      <joint name="${prefix}_${suffix}_wheel_joint">
+        <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
+      </joint>
+    </transmission>
+
+  </xacro:macro>
+
+  <xacro:wheel prefix="left" suffix="front" reflect1="1" reflect2="1" parent="chassis" mass="3" />
+  <xacro:wheel prefix="right" suffix="front" reflect1="1" reflect2="-1" parent="chassis" mass="3" />
+  <xacro:wheel prefix="left" suffix="back" reflect1="-1" reflect2="1" parent="chassis" mass="3" />
+  <xacro:wheel prefix="right" suffix="back" reflect1="-1" reflect2="-1" parent="chassis" mass="3" />
+
+
+  <!-- axle -->
+  <link name="axle_link">
+    <visual>
+      <origin xyz="0 0 ${tool_arm_length/2.0}" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="${tool_arm_radius}" length="${tool_arm_length}" />
+      </geometry>
+      <material name="blue" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${tool_arm_length/2.0}" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="${tool_arm_radius}" length="${tool_arm_length}" />
+      </geometry>
+    </collision>
+    <xacro:cylinder_inertial mass="0.2" r="${tool_arm_radius}" l="${tool_arm_length}" />
+  </link>
+  <joint name="axle_link_to_chassis" type="revolute">
+    <axis xyz="1 0.0 0.0" rpy=" 0 0 0" />
+    <parent link="chassis_link" />
+    <child link="axle_link" />
+    <origin
+      xyz="-${base_x_len/2.0} 0 -${base_z_len/2 + tool_arm_radius}"
+      rpy="0 -${pi / 2.0} 0" />
+    <limit lower="-${pi/4.0}" upper="${pi/4.0}" effort="10.0" velocity="0.1"/>
+  </joint>
+  <gazebo reference="axle_link">
+    <mu1 value="0.1" />
+    <mu2 value="0.1" />
+    <kp value="1000000.0" />
+    <kd value="10.0" />
+    <fdir1 value="1 0 0" />
+    <material>Gazebo/Grey</material>
+  </gazebo>
+
+  <!-- trailer -->
+  <link name="trailer_link">
+    <visual>
+      <geometry>
+        <box size="${trailer_x_len} ${trailer_y_len} ${trailer_z_len} " />
+      </geometry>
+      <material name="green" />
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${trailer_x_len} ${trailer_y_len} ${trailer_z_len} " />
+      </geometry>
+    </collision>
+    <xacro:box_inertial mass="0.5" x="${trailer_x_len}" y="${trailer_y_len}" z="${trailer_z_len}" />
+  </link>
+
+  <joint name="trailer_link_to_axle" type="fixed">
+    <parent link="axle_link" />
+    <child link="trailer_link" />
+    <origin
+      xyz=" ${tool_arm_radius + trailer_z_len/2} 0 ${trailer_x_len/2.0 + tool_arm_length}"
+      rpy="0 ${pi/2.0} 0" />
+  </joint>
+
+  <!-- wheel of trailer -->
+
+  <link name="trailer_left_wheel">
+    <visual>
+      <geometry>
+        <box size="${wheel_radius * 2} ${wheel_radius * 2} ${wheel_radius * 2}" />
+      </geometry>
+      <material name="blue" />
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${wheel_radius * 2} ${wheel_radius * 2} ${wheel_radius * 2}" />
+      </geometry>
+    </collision>
+    <xacro:box_inertial mass="0.5" x="${wheel_radius * 2}" y="${wheel_radius * 2}" z="${wheel_radius * 2}" />
+  </link>
+
+  <joint name="trailer_left_wheel_to_trailer_link" type="fixed">
+    <parent link="trailer_link" />
+    <child link="trailer_left_wheel" />
+    <origin
+      xyz=" 0 -${trailer_y_len / 2.0 - wheel_radius} -${trailer_z_len/2.0 + wheel_radius}"
+      rpy="0 0 0" />
+  </joint>
+  <gazebo reference="trailer_left_wheel">
+    <mu1>0.1</mu1>
+    <mu2>0.1</mu2>
+    <kp>1000000.0</kp>
+    <kd>100.0</kd>
+    <minDepth>0.001</minDepth>
+    <maxVel>1.0</maxVel>
+    <material>Gazebo/FlatBlack</material>
+  </gazebo>
+
+  <link name="trailer_right_wheel">
+    <visual>
+      <geometry>
+        <box size="${wheel_radius * 2} ${wheel_radius * 2} ${wheel_radius * 2}" />
+      </geometry>
+      <material name="blue" />
+    </visual>
+    <collision>
+      <geometry>
+        <box size="${wheel_radius * 2} ${wheel_radius * 2} ${wheel_radius * 2}" />
+      </geometry>
+    </collision>
+    <xacro:box_inertial mass="2" x="${wheel_radius * 2}" y="${wheel_radius * 2}" z="${wheel_radius * 2}" />
+  </link>
+
+  <joint name="trailer_right_wheel_to_trailer_link" type="fixed">
+    <parent link="trailer_link" />
+    <child link="trailer_right_wheel" />
+    <origin
+      xyz=" 0 ${trailer_y_len / 2.0 - wheel_radius} -${trailer_z_len/2.0 + wheel_radius}"
+      rpy="0 0 0" />
+  </joint>
+
+  <gazebo reference="trailer_right_wheel">
+    <mu1>0.1</mu1>
+    <mu2>0.1</mu2>
+    <kp>1000000.0</kp>
+    <kd>100.0</kd>
+    <minDepth>0.001</minDepth>
+    <maxVel>1.0</maxVel>
+    <material>Gazebo/FlatBlack</material>
+  </gazebo>
+  <!-- Gazebo plugin for ROS Control -->
+  <gazebo>
+    <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
+      <robotNamespace>/</robotNamespace>
+    </plugin>
+  </gazebo>
+
+</robot>

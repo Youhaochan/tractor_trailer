@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="gui" default="true" />
+  <arg name="run_camera" default="false" />
+  <arg name="use_sim_time" value="true" />
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="gui" value="$(arg gui)" />
+  </include>
+  <arg name="rvizconfig" default="$(find trailer_description)/rviz/trailer.rviz" />
+
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rvizconfig)" required="true" />
+
+  <!-- urdf xml robot description loaded on the Parameter Server, converting the xacro into a proper
+  urdf file-->
+  <param name="robot_description"
+    command="$(find xacro)/xacro '$(find trailer_description)/urdf/tractor_trailer.urdf'" />
+
+  <!-- push robot_description to factory and spawn robot in gazebo -->
+  <node name="diffdrive_spawn" pkg="gazebo_ros" type="spawn_model" output="screen"
+    args="-urdf -param robot_description -model diffdrive -z 0.05" />
+
+
+  <!-- Load joint controller configurations from YAML file to parameter server -->
+  <rosparam file="$(find diff_control)/config/diffdrive.yaml" command="load" />
+
+  <!-- load the controllers -->
+  <!-- 这个controller 会创建一个/mobile_base_controller/cmd_vel subscriber 来接受控制话题，然后控制小车移动 -->
+  <node name="tractor_controller_spawner" pkg="controller_manager" type="spawner"
+    args="mobile_base_controller jointStatePub">
+    <remap from="/mobile_base_controller/cmd_vel" to="/cmd_vel" />
+  </node>
+
+  <!-- convert joint states to TF transforms for rviz, etc -->
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+    <param name="publish_frequency" type="double" value="50.0" />
+  </node>
+  <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+  <node name="rqt_robot_steering" pkg="rqt_robot_steering" type="rqt_robot_steering">
+    <param name="default_topic" value="/mobile_base_controller/cmd_vel" />
+  </node>
+</launch>
